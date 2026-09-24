@@ -49,6 +49,8 @@ const seed = {
     announcement: '🔥 مرحباً بكم في متجر FET STORE — سكربتات QBCore الحصرية متوفرة الآن!',
     logo: 'assets/logo.png',
     hero_interval: 5,
+    discord_client_id: '1538093018299633724',
+    discord_client_secret: '',
     discord_bot_token: '',
     discord_guild_id: '',
     discord_customer_role_id: ''
@@ -417,20 +419,71 @@ async function checkCustomerAuth() {
   renderCustomerNav();
 }
 
+function loginWithDiscord() {
+  const clientId = store.settings.discord_client_id || '1538093018299633724';
+  const redirectUri = window.location.origin + window.location.pathname;
+  // Official Discord OAuth2 Authorization URL
+  const authUrl = `https://discord.com/oauth2/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=identify`;
+  window.location.href = authUrl;
+}
+
 function renderCustomerNav() {
   const container = $('customerNavContainer');
   if (!container) return;
 
   if (currentCustomer) {
     container.innerHTML = `
-      <div class="cust-profile-btn" id="openCustMenuBtn" title="حسابي وطلباتي">
-        <img class="cust-avatar" src="${esc(currentCustomer.avatar)}" alt="Discord">
-        <span class="cust-name">${esc(currentCustomer.username)}</span>
+      <div class="cust-menu-wrap">
+        <button class="cust-profile-btn" id="custMenuToggleBtn" type="button" title="حسابي">
+          <img class="cust-avatar" src="${esc(currentCustomer.avatar)}" alt="Discord">
+          <span class="cust-name">${esc(currentCustomer.username)}</span>
+          <span style="font-size:9px;color:var(--muted);margin-right:2px;">▼</span>
+        </button>
+        <div class="cust-dropdown" id="custDropdownMenu" hidden>
+          <button class="cust-drop-item" id="menuMyOrdersBtn" type="button">
+            <span>📦</span>
+            <span>طلباتي</span>
+          </button>
+          <div class="cust-drop-divider"></div>
+          <button class="cust-drop-item danger" id="menuLogoutBtn" type="button">
+            <span>🚪</span>
+            <span>تسجيل خروج</span>
+          </button>
+        </div>
       </div>
     `;
-    $('openCustMenuBtn').onclick = () => {
-      showCustomerOptions();
-    };
+
+    const toggleBtn = $('custMenuToggleBtn');
+    const dropdown = $('custDropdownMenu');
+
+    if (toggleBtn && dropdown) {
+      toggleBtn.onclick = (e) => {
+        e.stopPropagation();
+        dropdown.hidden = !dropdown.hidden;
+      };
+
+      const myOrdersBtn = $('menuMyOrdersBtn');
+      if (myOrdersBtn) {
+        myOrdersBtn.onclick = (e) => {
+          e.stopPropagation();
+          dropdown.hidden = true;
+          showMyOrders();
+        };
+      }
+
+      const logoutBtn = $('menuLogoutBtn');
+      if (logoutBtn) {
+        logoutBtn.onclick = (e) => {
+          e.stopPropagation();
+          dropdown.hidden = true;
+          customerLogout();
+        };
+      }
+
+      document.addEventListener('click', () => {
+        if (dropdown) dropdown.hidden = true;
+      });
+    }
   } else {
     container.innerHTML = `
       <button class="btn discord small" id="loginCustBtn" type="button" style="display:inline-flex;align-items:center;gap:7px;padding:7px 15px;font-size:12px;font-weight:700;border-radius:10px;">
@@ -439,18 +492,8 @@ function renderCustomerNav() {
       </button>
     `;
     $('loginCustBtn').onclick = () => {
-      $('customerLoginModal').showModal();
+      loginWithDiscord();
     };
-  }
-}
-
-function showCustomerOptions() {
-  if (confirm(`مرحباً بك ${currentCustomer.username}!\n\nهل تود استعراض طلباتك السابقة؟\n(اضغط "موافق" لعرض طلباتي، أو "إلغاء" لتسجيل الخروج)`)) {
-    showMyOrders();
-  } else {
-    if (confirm('هل ترغب بتسجيل الخروج من حساب الديسكورد؟')) {
-      customerLogout();
-    }
   }
 }
 
@@ -646,6 +689,48 @@ async function init() {
   // Ensure default structures
   if (!store.hero_slides || store.hero_slides.length === 0) store.hero_slides = defaultSlides;
   if (!store.settings.hero_interval) store.settings.hero_interval = 5;
+
+  // Check for Discord OAuth redirect token in URL hash
+  const hash = window.location.hash;
+  if (hash && hash.includes('access_token=')) {
+    const params = new URLSearchParams(hash.slice(1));
+    const token = params.get('access_token');
+    if (token) {
+      try {
+        toast('جاري جلب بيانات حسابك من ديسكورد...', '⏳');
+        const dRes = await fetch('https://discord.com/api/v10/users/@me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const discordUser = await dRes.json();
+        if (discordUser && discordUser.id) {
+          const avatarUrl = discordUser.avatar
+            ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`
+            : `https://cdn.discordapp.com/embed/avatars/${(parseInt(discordUser.id) >> 22) % 6}.png`;
+          const profile = {
+            username: discordUser.global_name || discordUser.username,
+            discord_id: discordUser.id,
+            avatar: avatarUrl,
+            joinedAt: new Date().toISOString()
+          };
+
+          if (server) {
+            await api('auth/customer/authorize', profile);
+          } else {
+            localStorage.setItem('fet_demo_customer', JSON.stringify(profile));
+          }
+
+          currentCustomer = profile;
+          window.history.replaceState(null, '', window.location.pathname);
+          toast(`أهلاً بك يا ${profile.username}، تم تسجيل دخولك بديسكورد بنجاح 🎮`, '✅');
+        }
+      } catch (err) {
+        toast('تعذر إكمال تسجيل الدخول: ' + err.message, '⚠️');
+      }
+    }
+  } else if (window.location.search.includes('auth=success')) {
+    window.history.replaceState(null, '', window.location.pathname);
+    toast('تم تسجيل الدخول الرسمي عبر ديسكورد بنجاح 🎮', '✅');
+  }
 
   render();
   checkCustomerAuth();
@@ -1330,45 +1415,13 @@ $('editForm').onsubmit = async e => {
 // Discord OAuth Sign-In Handlers
 if ($('discordSignInBtn')) {
   $('discordSignInBtn').onclick = () => {
-    if (server && store.settings.discord_client_id) {
-      location.href = '/api/auth/discord/login';
-    } else {
-      $('customerLoginModal').close();
-      $('discordAuthDialog').showModal();
-    }
+    loginWithDiscord();
   };
 }
 
 if ($('confirmAuthorizeBtn')) {
-  $('confirmAuthorizeBtn').onclick = async () => {
-    try {
-      const demoUser = {
-        username: 'azeal',
-        discord_id: '928374928172648',
-        avatar: 'https://cdn.discordapp.com/embed/avatars/0.png'
-      };
-
-      if (server) {
-        const res = await api('auth/customer/authorize', demoUser);
-        currentCustomer = res.user;
-      } else {
-        currentCustomer = {
-          ...demoUser,
-          joinedAt: new Date().toISOString()
-        };
-        localStorage.setItem('fet_demo_customer', JSON.stringify(currentCustomer));
-      }
-
-      $('discordAuthDialog').close();
-      renderCustomerNav();
-      toast(`تم تسجيل الدخول بنجاح عبر الديسكورد (${currentCustomer.username}) 🎮`, '✅');
-
-      if (cart.length > 0) {
-        openCart();
-      }
-    } catch (err) {
-      toast('تعذر تسجيل الدخول: ' + err.message, '⚠️');
-    }
+  $('confirmAuthorizeBtn').onclick = () => {
+    loginWithDiscord();
   };
 }
 

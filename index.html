@@ -182,36 +182,93 @@
       transform: scale(1.35);
     }
 
-    /* Customer Account In Nav */
+    /* Customer Account Dropdown In Nav */
+    .cust-menu-wrap {
+      position: relative;
+      display: inline-block;
+    }
     .cust-profile-btn {
       display: flex;
       align-items: center;
       gap: 8px;
       background: #131b14;
       border: 1px solid var(--line);
-      padding: 5px 12px 5px 6px;
+      padding: 5px 12px 5px 8px;
       border-radius: 30px;
       cursor: pointer;
       transition: .2s;
     }
     .cust-profile-btn:hover {
       border-color: var(--accent);
+      background: #19241a;
     }
     .cust-avatar {
       width: 28px;
       height: 28px;
       border-radius: 50%;
       object-fit: cover;
-      border: 1px solid var(--accent);
+      border: 1.5px solid var(--accent);
     }
     .cust-name {
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
       color: #e5efe4;
-      max-width: 90px;
+      max-width: 100px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .cust-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      min-width: 165px;
+      background: #101812;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      box-shadow: 0 12px 35px rgba(0,0,0,0.75), 0 0 20px rgba(140,255,54,0.12);
+      padding: 6px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      animation: fadeInDropdown .2s ease;
+    }
+    @keyframes fadeInDropdown {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .cust-dropdown[hidden] {
+      display: none !important;
+    }
+    .cust-drop-item {
+      width: 100%;
+      text-align: right;
+      background: transparent;
+      border: 0;
+      color: #d6e2d5;
+      padding: 10px 14px;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: .15s;
+    }
+    .cust-drop-item:hover {
+      background: #1c2b1e;
+      color: var(--accent);
+    }
+    .cust-drop-item.danger:hover {
+      background: rgba(255, 75, 75, 0.15);
+      color: #ff6b6b;
+    }
+    .cust-drop-divider {
+      height: 1px;
+      background: var(--line);
+      margin: 4px 6px;
     }
 
     /* Hero Slider Container */
