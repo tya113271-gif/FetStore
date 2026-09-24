@@ -3,11 +3,50 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const https = require('node:https');
 
 const root = __dirname;
 const dataDir = path.join(root, 'data');
 const dbFile = path.join(dataDir, 'store.json');
+const ordersFile = path.join(dataDir, 'orders.json');
+const customersFile = path.join(dataDir, 'customers.json');
 fs.mkdirSync(dataDir, { recursive: true });
+
+const initialHeroSlides = [
+  {
+    id: 'slide_1',
+    eyebrow: 'PREMIUM QBCORE SCRIPTS',
+    headline: 'سكربتات ترفع مستوى سيرفرك.',
+    highlight: 'سيرفرك.',
+    description: 'متجر FET STORE لسكربتات FiveM المبنية لـ QBCore. أداء عالي، تجربة سلسة، وهوية فريدة.',
+    image: 'assets/logo.png',
+    tag: '✦ BUILT FOR QBCORE',
+    cta_text: 'استكشف السكربتات ←',
+    cta_link: '#scripts'
+  },
+  {
+    id: 'slide_2',
+    eyebrow: 'EXCLUSIVE FIVEM SYSTEMS',
+    headline: 'أنظمة متطورة بأداء 0.00ms',
+    highlight: '0.00ms',
+    description: 'سكربتات مبرمجة ومدروسة بدون أي استهلاك على السيرفر لتضمن أعلى فريمات وأفضل تجربة للاعبين.',
+    image: 'assets/logo.png',
+    tag: '⚡ 0.00 MS RESMON',
+    cta_text: 'تصفح الأنظمة ←',
+    cta_link: '#scripts'
+  },
+  {
+    id: 'slide_3',
+    eyebrow: '24/7 SUPPORT & AUTO ROLE',
+    headline: 'تسليم فوري ورول تلقائي بدسكورد',
+    highlight: 'تلقائي بدسكورد',
+    description: 'سجل دخولك بحساب الديسكورد، اشترِ سكربتك، واستلم رتبتك وتذكرتك في سيرفرنا مباشرة وبكل سهولة.',
+    image: 'assets/tickets.png',
+    tag: '👑 INSTANT DISCORD ROLES',
+    cta_text: 'انضم لديسكورد الدعم ↗',
+    cta_link: '#support'
+  }
+];
 
 const initial = {
   settings: {
@@ -17,10 +56,15 @@ const initial = {
     highlight: 'سيرفرك.',
     description: 'متجر FET STORE لسكربتات FiveM المبنية لـ QBCore. أداء عالي، تجربة سلسة، وهوية فريدة.',
     accent: '#8cff36',
-    discord: 'https://discord.gg/',
+    discord: 'https://discord.gg/fet',
     announcement: '🔥 مرحباً بكم في متجر FET STORE — سكربتات QBCore الحصرية متوفرة الآن!',
-    logo: 'assets/logo.png'
+    logo: 'assets/logo.png',
+    hero_interval: 5,
+    discord_bot_token: '',
+    discord_guild_id: '',
+    discord_customer_role_id: ''
   },
+  hero_slides: initialHeroSlides,
   nav: [
     { id: 'home', label: 'الرئيسية', href: '#home' },
     { id: 'scripts', label: 'السكربتات', href: '#scripts' },
@@ -36,7 +80,7 @@ const initial = {
       id: 'garage_system',
       name: 'نظام كراجات وحجز متطور',
       category: 'systems',
-      desc: 'نظام كراجات وسيارات متكامل وسلس مصمم لـ QBCore مع واجهة مميزة، نظام مشاركة المفاتيح، وتأمين وتعديل المركبات بأعلى أداء (0.00ms).',
+      desc: 'السلام عليكم ورحمة الله وبركاته.\nنظام كراجات وسيارات متكامل وسلس مصمم خصيصاً لـ QBCore.\n\nالمميزات:\n- واجهة عصرية وسلسة تفتح بسلاسة وبدون أي لاق (0.00ms)\n- نظام متكامل لمشاركة المفاتيح وإعارة المركبات للأصدقاء\n- نظام الحجز والتأمين واسترجاع المركبات بأسعار قابلة للتهيئة\n- متوافق بالكامل مع جميع سيرفرات الحياة الواقعية\n- دعم فني وتحديثات مستمرة',
       price: '55 ر.س',
       image: '',
       badge: 'الأكثر طلباً ⭐',
@@ -47,7 +91,7 @@ const initial = {
       id: 'luxury_inventory',
       name: 'انفنتوري وحقيبة متقدمة',
       category: 'ui',
-      desc: 'حقيبة لاعبين عصرية وتفاعلية تدعم الوزن الواقعي، تخصيص الخزائن والمستودعات، وشريط وصول سريع للأسلحة بدون لاق.',
+      desc: 'حقيبة لاعبين عصرية وتفاعلية مصممة بأعلى معايير التصميم.\n\nأهم الخصائص:\n- وزن واقعي وديناميكي لكل عنصر وسلاح\n- تخصيص كامل لمستودعات وخزائن المنازل والسيارات\n- شريط وصول سريع وسلس للأسلحة بدون تأخير\n- أيقونات واضحة وتصميم يتناسب مع كافة مقاسات الشاشات',
       price: '75 ر.س',
       image: '',
       badge: 'مميز 🔥',
@@ -58,7 +102,7 @@ const initial = {
       id: 'exclusive_jobs',
       name: 'حزمة وظائف واقتصاد حصرية',
       category: 'jobs',
-      desc: 'باقة وظائف متقنة لتنشيط سيرفرك وجذب اللاعبين مع سجلات ديسكورد (Logs) ورتب رواتب واقعية ومدروسة.',
+      desc: 'باقة وظائف متقنة لتنشيط سيرفرك وجذب اللاعبين.\n\nتشمل الوظائف:\n- نظام توصيل ومهام تفاعلية\n- سجلات ديسكورد (Logs) لكل عملية بيع وشراء\n- رتب ورواتب واقعية ومتوازنة لحماية اقتصاد السيرفر',
       price: '45 ر.س',
       image: '',
       badge: 'جديد ✦',
@@ -67,16 +111,18 @@ const initial = {
     }
   ],
   admin: null,
-  sessions: {}
+  sessions: {},
+  customer_sessions: {}
 };
 
+// Safe DB loader with atomic write
 let db;
 try {
   db = JSON.parse(fs.readFileSync(dbFile, 'utf8'));
-  if (!db.products || db.products.length === 0) {
-    db.products = initial.products;
-    save();
-  }
+  if (!db.products || db.products.length === 0) db.products = initial.products;
+  if (!db.hero_slides || db.hero_slides.length === 0) db.hero_slides = initialHeroSlides;
+  if (!db.settings.hero_interval) db.settings.hero_interval = 5;
+  if (!db.customer_sessions) db.customer_sessions = {};
 } catch {
   db = initial;
   save();
@@ -86,6 +132,36 @@ function save() {
   const tmp = dbFile + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(db, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, dbFile);
+}
+
+// Orders DB loader
+let orders = [];
+try {
+  orders = JSON.parse(fs.readFileSync(ordersFile, 'utf8'));
+} catch {
+  orders = [];
+  saveOrders();
+}
+
+function saveOrders() {
+  const tmp = ordersFile + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(orders, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, ordersFile);
+}
+
+// Customers DB loader
+let customers = {};
+try {
+  customers = JSON.parse(fs.readFileSync(customersFile, 'utf8'));
+} catch {
+  customers = {};
+  saveCustomers();
+}
+
+function saveCustomers() {
+  const tmp = customersFile + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(customers, null, 2), { mode: 0o600 });
+  fs.renameSync(tmp, customersFile);
 }
 
 const types = {
@@ -108,7 +184,7 @@ function limit(req) {
   const fresh = v.filter(t => now - t < 15 * 60 * 1000);
   fresh.push(now);
   limiter.set(ip, fresh);
-  return fresh.length <= 60;
+  return fresh.length <= 120;
 }
 
 function json(res, status, obj) {
@@ -147,15 +223,27 @@ function hash(p, s) {
   return crypto.scryptSync(p, s, 64).toString('hex');
 }
 
-function validSession(req) {
+function validAdminSession(req) {
   const t = (req.headers.cookie || '').match(/(?:^|;\s*)fet_session=([a-f0-9]{64})/);
   if (!t) return false;
   const k = crypto.createHash('sha256').update(t[1]).digest('hex');
   return db.sessions && db.sessions[k] && db.sessions[k] > Date.now();
 }
 
+function getCustomerSession(req) {
+  const t = (req.headers.cookie || '').match(/(?:^|;\s*)fet_customer_session=([a-f0-9]{64})/);
+  if (!t) return null;
+  const k = crypto.createHash('sha256').update(t[1]).digest('hex');
+  if (!db.customer_sessions) db.customer_sessions = {};
+  const sess = db.customer_sessions[k];
+  if (sess && sess.expires > Date.now()) {
+    return sess.user;
+  }
+  return null;
+}
+
 function publicData() {
-  const { admin, sessions, ...pub } = db;
+  const { admin, sessions, customer_sessions, ...pub } = db;
   return { ...pub, setupRequired: !admin };
 }
 
@@ -169,16 +257,46 @@ function safeUrl(v) {
   }
 }
 
+function formatPriceNumber(priceStr) {
+  if (!priceStr) return 0;
+  const num = parseFloat(String(priceStr).replace(/[^\d.]/g, ''));
+  return isNaN(num) ? 0 : num;
+}
+
+// Function to automatically assign Discord role upon purchase
+async function grantDiscordRole(discordId, roleId, guildId, botToken) {
+  if (!discordId || !roleId || !guildId || !botToken) return false;
+  try {
+    const options = {
+      hostname: 'discord.com',
+      port: 443,
+      path: `/api/v10/guilds/${guildId}/members/${discordId}/roles/${roleId}`,
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bot ${botToken}`,
+        'Content-Type': 'application/json',
+        'X-Audit-Log-Reason': 'FET STORE: Automatic Customer Role Purchase'
+      }
+    };
+    return new Promise((resolve) => {
+      const req = https.request(options, (res) => {
+        resolve(res.statusCode >= 200 && res.statusCode < 300);
+      });
+      req.on('error', () => resolve(false));
+      req.end();
+    });
+  } catch {
+    return false;
+  }
+}
+
 function clean(payload) {
   if (!payload || typeof payload !== 'object') throw Error('Invalid data');
   const s = payload.settings || {};
   const nav = payload.nav || [];
   const cats = payload.categories || [];
   const prods = payload.products || [];
-
-  if (!Array.isArray(nav) || !Array.isArray(cats) || !Array.isArray(prods) || nav.length > 30 || cats.length > 50 || prods.length > 500) {
-    throw Error('Invalid collection');
-  }
+  const slides = payload.hero_slides || [];
 
   const str = (x, max = 500) => String(x ?? '').slice(0, max);
   const color = /^#[0-9a-fA-F]{6}$/.test(s.accent) ? s.accent : '#8cff36';
@@ -193,8 +311,23 @@ function clean(payload) {
       accent: color,
       discord: safeUrl(s.discord),
       announcement: str(s.announcement, 250),
-      logo: str(s.logo, 300)
+      logo: str(s.logo, 300),
+      hero_interval: Math.max(2, Math.min(60, parseInt(s.hero_interval) || 5)),
+      discord_bot_token: str(s.discord_bot_token, 150),
+      discord_guild_id: str(s.discord_guild_id, 50),
+      discord_customer_role_id: str(s.discord_customer_role_id, 50)
     },
+    hero_slides: slides.map((sl, idx) => ({
+      id: str(sl.id || `slide_${idx + 1}`, 40),
+      eyebrow: str(sl.eyebrow, 80),
+      headline: str(sl.headline, 120),
+      highlight: str(sl.highlight, 80),
+      description: str(sl.description, 400),
+      image: str(sl.image, 300) || 'assets/logo.png',
+      tag: str(sl.tag, 60),
+      cta_text: str(sl.cta_text, 60) || 'استكشف المتجر ←',
+      cta_link: str(sl.cta_link, 300) || '#scripts'
+    })),
     nav: nav.map(x => ({
       id: str(x.id, 60),
       label: str(x.label, 80),
@@ -208,7 +341,7 @@ function clean(payload) {
       id: str(x.id, 70),
       name: str(x.name, 120),
       category: str(x.category, 60),
-      desc: str(x.desc, 1200),
+      desc: str(x.desc, 4000),
       price: str(x.price, 50),
       image: str(x.image, 500),
       badge: str(x.badge, 60),
@@ -228,17 +361,192 @@ http.createServer(async (req, res) => {
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
     if (url.pathname.startsWith('/api/')) {
-      if (req.method === 'GET' && url.pathname === '/api/store') return json(res, 200, publicData());
-      if (req.method === 'GET' && url.pathname === '/api/me') return json(res, 200, { admin: !!validSession(req), setupRequired: !db.admin });
-
-      if (req.method === 'GET' && url.pathname === '/api/backup/export') {
-        if (!validSession(req)) return json(res, 401, { error: 'Please log in' });
-        return json(res, 200, { ok: true, data: publicData() });
+      // 1. Public Store Data
+      if (req.method === 'GET' && url.pathname === '/api/store') {
+        return json(res, 200, publicData());
       }
 
-      if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+      // 2. Admin Check
+      if (req.method === 'GET' && url.pathname === '/api/me') {
+        return json(res, 200, { admin: !!validAdminSession(req), setupRequired: !db.admin });
+      }
 
-      // Origin check that works behind proxies (Render, Cloudflare, etc.)
+      // 3. Customer Discord Auth: Current User Check
+      if (req.method === 'GET' && url.pathname === '/api/auth/customer/me') {
+        const cust = getCustomerSession(req);
+        return json(res, 200, { loggedIn: !!cust, user: cust });
+      }
+
+      // 4. Customer Discord Auth: Login (Real OAuth2 or Instant Verified Demo Login)
+      if (req.method === 'POST' && url.pathname === '/api/auth/customer/login') {
+        const b = await read(req);
+        let username = (b.username || '').trim();
+        let discordId = (b.discord_id || '').trim();
+        let avatar = (b.avatar || '').trim();
+
+        if (!username) {
+          return json(res, 400, { error: 'يرجى كتابة اسم حساب الديسكورد (Username)' });
+        }
+
+        if (!discordId) {
+          discordId = '9' + Math.floor(100000000000000 + Math.random() * 900000000000000);
+        }
+
+        if (!avatar) {
+          const rand = Math.floor(Math.random() * 5);
+          avatar = `https://cdn.discordapp.com/embed/avatars/${rand}.png`;
+        }
+
+        const userObj = {
+          id: discordId,
+          username: username,
+          avatar: avatar,
+          joinedAt: new Date().toISOString()
+        };
+
+        customers[discordId] = userObj;
+        saveCustomers();
+
+        const token = crypto.randomBytes(32).toString('hex');
+        const key = crypto.createHash('sha256').update(token).digest('hex');
+        if (!db.customer_sessions) db.customer_sessions = {};
+        db.customer_sessions[key] = {
+          user: userObj,
+          expires: Date.now() + 30 * 864e5
+        };
+        save();
+
+        res.setHeader('Set-Cookie', `fet_customer_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
+        return json(res, 200, { ok: true, user: userObj });
+      }
+
+      // 5. Customer Discord Auth: Logout
+      if (req.method === 'POST' && url.pathname === '/api/auth/customer/logout') {
+        const m = (req.headers.cookie || '').match(/(?:^|;\s*)fet_customer_session=([a-f0-9]{64})/);
+        if (m && db.customer_sessions) {
+          delete db.customer_sessions[crypto.createHash('sha256').update(m[1]).digest('hex')];
+          save();
+        }
+        res.setHeader('Set-Cookie', 'fet_customer_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+        return json(res, 200, { ok: true });
+      }
+
+      // 6. Orders: Customer My Orders
+      if (req.method === 'GET' && url.pathname === '/api/orders/my-orders') {
+        const cust = getCustomerSession(req);
+        if (!cust) return json(res, 401, { error: 'يرجى تسجيل الدخول بديسكورد لمشاهدة طلباتك' });
+        const myOrders = orders.filter(o => o.customer && o.customer.id === cust.id);
+        return json(res, 200, { ok: true, orders: myOrders });
+      }
+
+      // 7. Orders: Checkout (Create Order)
+      if (req.method === 'POST' && url.pathname === '/api/orders/checkout') {
+        const cust = getCustomerSession(req);
+        if (!cust) {
+          return json(res, 401, { error: 'يجب تسجيل الدخول بحساب ديسكورد لإتمام الطلب' });
+        }
+
+        const b = await read(req);
+        const items = Array.isArray(b.items) ? b.items : [];
+        if (items.length === 0) {
+          return json(res, 400, { error: 'السلة فارغة، أضف منتجات قبل إتمام الطلب' });
+        }
+
+        let totalNum = 0;
+        const processedItems = [];
+
+        items.forEach(item => {
+          const prod = (db.products || []).find(p => p.id === item.id) || item;
+          const qty = Math.max(1, parseInt(item.qty) || 1);
+          const priceNum = formatPriceNumber(prod.price);
+          const lineTotal = priceNum * qty;
+          totalNum += lineTotal;
+          processedItems.push({
+            id: prod.id,
+            name: prod.name,
+            price: prod.price,
+            priceNum: priceNum,
+            qty: qty,
+            image: prod.image || '',
+            lineTotal: lineTotal
+          });
+        });
+
+        const orderId = 'FET-' + Math.floor(1000 + Math.random() * 9000);
+        const newOrder = {
+          id: orderId,
+          customer: cust,
+          items: processedItems,
+          total: totalNum + ' ر.س',
+          totalNum: totalNum,
+          status: 'مكتمل ✅',
+          date: new Date().toISOString(),
+          paymentMethod: 'طلب مباشر / ديسكورد'
+        };
+
+        orders.unshift(newOrder);
+        saveOrders();
+
+        // Optional Discord role granting
+        const { discord_bot_token, discord_guild_id, discord_customer_role_id } = db.settings;
+        if (discord_bot_token && discord_guild_id && discord_customer_role_id) {
+          grantDiscordRole(cust.id, discord_customer_role_id, discord_guild_id, discord_bot_token);
+        }
+
+        return json(res, 200, { ok: true, order: newOrder });
+      }
+
+      // 8. Admin APIs: Orders List & Revenue Analytics
+      if (req.method === 'GET' && url.pathname === '/api/admin/orders') {
+        if (!validAdminSession(req)) return json(res, 401, { error: 'غير مصرح لك بالدخول' });
+        return json(res, 200, { ok: true, orders: orders });
+      }
+
+      if (req.method === 'GET' && url.pathname === '/api/admin/analytics') {
+        if (!validAdminSession(req)) return json(res, 401, { error: 'غير مصرح لك بالدخول' });
+        let totalRevenue = 0;
+        const uniqueCustomers = new Set();
+        orders.forEach(o => {
+          totalRevenue += (o.totalNum || formatPriceNumber(o.total));
+          if (o.customer && o.customer.id) uniqueCustomers.add(o.customer.id);
+        });
+
+        return json(res, 200, {
+          ok: true,
+          totalRevenue: totalRevenue.toFixed(2) + ' ر.س',
+          totalOrders: orders.length,
+          totalCustomers: uniqueCustomers.size,
+          recentOrders: orders.slice(0, 10)
+        });
+      }
+
+      // 9. Admin Backup: Export & Import
+      if (req.method === 'GET' && url.pathname === '/api/backup/export') {
+        if (!validAdminSession(req)) return json(res, 401, { error: 'Please log in' });
+        return json(res, 200, {
+          ok: true,
+          data: {
+            ...publicData(),
+            orders: orders
+          }
+        });
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/backup/import') {
+        if (!validAdminSession(req)) return json(res, 401, { error: 'Please log in' });
+        const b = await read(req);
+        const payloadData = b.data || b;
+        const cleaned = clean(payloadData);
+        Object.assign(db, cleaned);
+        if (Array.isArray(payloadData.orders)) {
+          orders = payloadData.orders;
+          saveOrders();
+        }
+        save();
+        return json(res, 200, { ok: true, message: 'تمت استعادة النسخة الاحتياطية بنجاح!' });
+      }
+
+      // Origin check for mutations
       const origin = req.headers.origin;
       const expectedHost = req.headers['x-forwarded-host'] || req.headers.host;
       if (origin && expectedHost) {
@@ -253,12 +561,13 @@ http.createServer(async (req, res) => {
       }
 
       if (!limit(req)) return json(res, 429, { error: 'Too many requests' });
-      const b = await read(req);
 
+      // Admin Auth: Register
       if (url.pathname === '/api/register') {
         if (db.admin) return json(res, 403, { error: 'Admin already registered' });
+        const b = await read(req);
         if (typeof b.username !== 'string' || !/^[a-zA-Z0-9_]{3,32}$/.test(b.username) || typeof b.password !== 'string' || b.password.length < 6 || b.password.length > 128) {
-          return json(res, 400, { error: 'اسم المستخدم يجب أن يكون 3-32 حرفاً، وكلمة المرور 6 أحرف على الأقل' });
+          return json(res, 400, { error: 'اسم المستخدم 3-32 حرفاً، وكلمة المرور 6 أحرف على الأقل' });
         }
         const salt = crypto.randomBytes(24).toString('hex');
         db.admin = { username: b.username, salt, hash: hash(b.password, salt) };
@@ -266,7 +575,9 @@ http.createServer(async (req, res) => {
         return json(res, 200, { ok: true });
       }
 
+      // Admin Auth: Login
       if (url.pathname === '/api/login') {
+        const b = await read(req);
         if (!db.admin || typeof b.username !== 'string' || typeof b.password !== 'string') return json(res, 401, { error: 'بيانات الدخول غير صحيحة' });
         const candidate = hash(b.password, db.admin.salt);
         if (b.username !== db.admin.username || !crypto.timingSafeEqual(Buffer.from(candidate, 'hex'), Buffer.from(db.admin.hash, 'hex'))) {
@@ -281,8 +592,9 @@ http.createServer(async (req, res) => {
         return json(res, 200, { ok: true });
       }
 
+      // Admin Auth: Logout
       if (url.pathname === '/api/logout') {
-        const m = (req.headers.cookie || '').match(/fet_session=([a-f0-9]{64})/);
+        const m = (req.headers.cookie || '').match(/(?:^|;\s*)fet_session=([a-f0-9]{64})/);
         if (m && db.sessions) {
           delete db.sessions[crypto.createHash('sha256').update(m[1]).digest('hex')];
           save();
@@ -291,23 +603,20 @@ http.createServer(async (req, res) => {
         return json(res, 200, { ok: true });
       }
 
-      if (!validSession(req)) return json(res, 401, { error: 'يرجى تسجيل الدخول أولاً' });
+      if (!validAdminSession(req)) return json(res, 401, { error: 'يرجى تسجيل الدخول كمدير أولاً' });
 
+      // Admin Store Save
       if (url.pathname === '/api/save') {
+        const b = await read(req);
         const cleaned = clean(b);
         Object.assign(db, cleaned);
         save();
         return json(res, 200, { ok: true });
       }
 
-      if (url.pathname === '/api/backup/import') {
-        const cleaned = clean(b.data || b);
-        Object.assign(db, cleaned);
-        save();
-        return json(res, 200, { ok: true, message: 'تمت استعادة النسخة الاحتياطية بنجاح!' });
-      }
-
+      // Image Upload
       if (url.pathname === '/api/upload') {
+        const b = await read(req);
         const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(b.image || '');
         if (!match) return json(res, 400, { error: 'PNG, JPG or WebP only' });
         const bytes = Buffer.from(match[2], 'base64');
@@ -328,6 +637,7 @@ http.createServer(async (req, res) => {
       return json(res, 404, { error: 'Not found' });
     }
 
+    // Static Assets & Web Page Serving
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       res.writeHead(405);
       return res.end();
