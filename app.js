@@ -433,9 +433,9 @@ function renderCustomerNav() {
     };
   } else {
     container.innerHTML = `
-      <button class="btn ghost small" id="loginCustBtn" type="button" style="border-color:#374937;">
-        <span style="color:var(--discord)">✦</span>
-        <span>تسجيل الدخول</span>
+      <button class="btn discord small" id="loginCustBtn" type="button" style="display:inline-flex;align-items:center;gap:7px;padding:7px 15px;font-size:12px;font-weight:700;border-radius:10px;">
+        <svg width="15" height="15" viewBox="0 0 127.14 96.36" fill="#fff"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,45.91,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,45.91,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>
+        <span>Sign in with Discord</span>
       </button>
     `;
     $('loginCustBtn').onclick = () => {
@@ -1136,6 +1136,8 @@ async function drawEditor() {
       <div class="fields">
         ${field('رابط سيرفر ديسكورد الدعم والتذاكر', 'discord', s.discord, 'url', true)}
         ${field('الشريط الإعلاني العلوي', 'announcement', s.announcement, 'text', true)}
+        ${field('Discord Client ID (معرف تطبيق الديسكورد للـ OAuth2)', 'discord_client_id', s.discord_client_id || '')}
+        ${field('Discord Client Secret (الرمز السري لتطبيق الديسكورد)', 'discord_client_secret', s.discord_client_secret || '', 'password')}
         ${field('Discord Bot Token (توكن بوت الديسكورد للرول التلقائي)', 'discord_bot_token', s.discord_bot_token || '', 'password', true)}
         ${field('Discord Guild ID (آيدي سيرفرك بالديسكورد)', 'discord_guild_id', s.discord_guild_id || '')}
         ${field('Discord Customer Role ID (آيدي رول العميل)', 'discord_customer_role_id', s.discord_customer_role_id || '')}
@@ -1325,40 +1327,50 @@ $('editForm').onsubmit = async e => {
   toast('تم التعديل بنجاح؛ اضغط "حفظ التعديلات" لتثبيتها', '✓');
 };
 
-// Customer Login Form Submit
-$('customerLoginForm').onsubmit = async e => {
-  e.preventDefault();
-  const username = $('custDiscordUser').value.trim();
-  const discordId = $('custDiscordId').value.trim();
-
-  if (!username) return toast('يرجى إدخال اسم مستخدم الديسكورد', '⚠️');
-
-  try {
-    if (server) {
-      const res = await api('auth/customer/login', { username, discord_id: discordId });
-      currentCustomer = res.user;
+// Discord OAuth Sign-In Handlers
+if ($('discordSignInBtn')) {
+  $('discordSignInBtn').onclick = () => {
+    if (server && store.settings.discord_client_id) {
+      location.href = '/api/auth/discord/login';
     } else {
-      currentCustomer = {
-        id: discordId || ('9' + Math.floor(100000000000000 + Math.random() * 900000000000000)),
-        username: username,
-        avatar: `https://cdn.discordapp.com/embed/avatars/${Math.floor(Math.random() * 5)}.png`,
-        joinedAt: new Date().toISOString()
+      $('customerLoginModal').close();
+      $('discordAuthDialog').showModal();
+    }
+  };
+}
+
+if ($('confirmAuthorizeBtn')) {
+  $('confirmAuthorizeBtn').onclick = async () => {
+    try {
+      const demoUser = {
+        username: 'azeal',
+        discord_id: '928374928172648',
+        avatar: 'https://cdn.discordapp.com/embed/avatars/0.png'
       };
-      localStorage.setItem('fet_demo_customer', JSON.stringify(currentCustomer));
-    }
 
-    $('customerLoginModal').close();
-    renderCustomerNav();
-    toast(`أهلاً بك يا ${currentCustomer.username} تم تسجيل الدخول بنجاح 🎮`, '✅');
+      if (server) {
+        const res = await api('auth/customer/authorize', demoUser);
+        currentCustomer = res.user;
+      } else {
+        currentCustomer = {
+          ...demoUser,
+          joinedAt: new Date().toISOString()
+        };
+        localStorage.setItem('fet_demo_customer', JSON.stringify(currentCustomer));
+      }
 
-    // If cart has items, proceed to checkout
-    if (cart.length > 0) {
-      openCart();
+      $('discordAuthDialog').close();
+      renderCustomerNav();
+      toast(`تم تسجيل الدخول بنجاح عبر الديسكورد (${currentCustomer.username}) 🎮`, '✅');
+
+      if (cart.length > 0) {
+        openCart();
+      }
+    } catch (err) {
+      toast('تعذر تسجيل الدخول: ' + err.message, '⚠️');
     }
-  } catch (err) {
-    toast('تعذر تسجيل الدخول: ' + err.message, '⚠️');
-  }
-};
+  };
+}
 
 // Admin Login Form Submit
 $('loginForm').onsubmit = async e => {

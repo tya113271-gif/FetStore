@@ -60,6 +60,8 @@ const initial = {
     announcement: '🔥 مرحباً بكم في متجر FET STORE — سكربتات QBCore الحصرية متوفرة الآن!',
     logo: 'assets/logo.png',
     hero_interval: 5,
+    discord_client_id: '',
+    discord_client_secret: '',
     discord_bot_token: '',
     discord_guild_id: '',
     discord_customer_role_id: ''
@@ -244,7 +246,11 @@ function getCustomerSession(req) {
 
 function publicData() {
   const { admin, sessions, customer_sessions, ...pub } = db;
-  return { ...pub, setupRequired: !admin };
+  // Don't expose secret in public settings
+  const safeSettings = { ...pub.settings };
+  delete safeSettings.discord_client_secret;
+  delete safeSettings.discord_bot_token;
+  return { ...pub, settings: safeSettings, setupRequired: !admin };
 }
 
 function safeUrl(v) {
@@ -290,6 +296,73 @@ async function grantDiscordRole(discordId, roleId, guildId, botToken) {
   }
 }
 
+// Discord OAuth Code Exchange
+function exchangeDiscordCode(code, redirectUri, clientId, clientSecret) {
+  return new Promise((resolve, reject) => {
+    const params = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: 'authorization_code',
+      code: code,
+      redirect_uri: redirectUri
+    }).toString();
+
+    const options = {
+      hostname: 'discord.com',
+      port: 443,
+      path: '/api/v10/oauth2/token',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(params)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(body));
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(params);
+    req.end();
+  });
+}
+
+function fetchDiscordUser(accessToken) {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'discord.com',
+      port: 443,
+      path: '/api/v10/users/@me',
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'User-Agent': 'FET-STORE (https://github.com/tya113271-gif/FetStore, 1.0.0)'
+      }
+    };
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(body));
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 function clean(payload) {
   if (!payload || typeof payload !== 'object') throw Error('Invalid data');
   const s = payload.settings || {};
@@ -313,6 +386,8 @@ function clean(payload) {
       announcement: str(s.announcement, 250),
       logo: str(s.logo, 300),
       hero_interval: Math.max(2, Math.min(60, parseInt(s.hero_interval) || 5)),
+      discord_client_id: str(s.discord_client_id, 100),
+      discord_client_secret: str(s.discord_client_secret, 150),
       discord_bot_token: str(s.discord_bot_token, 150),
       discord_guild_id: str(s.discord_guild_id, 50),
       discord_customer_role_id: str(s.discord_customer_role_id, 50)
@@ -377,16 +452,88 @@ http.createServer(async (req, res) => {
         return json(res, 200, { loggedIn: !!cust, user: cust });
       }
 
-      // 4. Customer Discord Auth: Login (Real OAuth2 or Instant Verified Demo Login)
-      if (req.method === 'POST' && url.pathname === '/api/auth/customer/login') {
+      // 4. Official Discord OAuth2: Initiate Login
+      if (req.method === 'GET' && url.pathname === '/api/auth/discord/login') {
+        const { discord_client_id } = db.settings;
+        const proto = req.headers['x-forwarded-proto'] || 'http';
+        const hostHeader = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+        const redirectUri = `${proto}://${hostHeader}/api/auth/discord/callback`;
+
+        if (discord_client_id) {
+          const discordAuthUrl = `https://discord.com/oauth2/authorize?client_id=${discord_client_id}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&scope=identify`;
+          res.writeHead(302, { 'Location': discordAuthUrl });
+          return res.end();
+        }
+
+        // If not configured, redirect back with flag
+        res.writeHead(302, { 'Location': '/?discord_flow=direct' });
+        return res.end();
+      }
+
+      // 5. Official Discord OAuth2: Callback
+      if (req.method === 'GET' && url.pathname === '/api/auth/discord/callback') {
+        const code = url.searchParams.get('code');
+        const { discord_client_id, discord_client_secret } = db.settings;
+        const proto = req.headers['x-forwarded-proto'] || 'http';
+        const hostHeader = req.headers['x-forwarded-host'] || req.headers.host || 'localhost:3000';
+        const redirectUri = `${proto}://${hostHeader}/api/auth/discord/callback`;
+
+        if (!code || !discord_client_id || !discord_client_secret) {
+          res.writeHead(302, { 'Location': '/?auth=error' });
+          return res.end();
+        }
+
+        try {
+          const tokenData = await exchangeDiscordCode(code, redirectUri, discord_client_id, discord_client_secret);
+          if (!tokenData || !tokenData.access_token) {
+            res.writeHead(302, { 'Location': '/?auth=token_error' });
+            return res.end();
+          }
+
+          const discordUser = await fetchDiscordUser(tokenData.access_token);
+          if (!discordUser || !discordUser.id) {
+            res.writeHead(302, { 'Location': '/?auth=user_error' });
+            return res.end();
+          }
+
+          const avatarUrl = discordUser.avatar
+            ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png?size=128`
+            : `https://cdn.discordapp.com/embed/avatars/${(parseInt(discordUser.id) >> 22) % 6}.png`;
+
+          const userObj = {
+            id: discordUser.id,
+            username: discordUser.global_name || discordUser.username,
+            avatar: avatarUrl,
+            joinedAt: new Date().toISOString()
+          };
+
+          customers[discordUser.id] = userObj;
+          saveCustomers();
+
+          const token = crypto.randomBytes(32).toString('hex');
+          const key = crypto.createHash('sha256').update(token).digest('hex');
+          if (!db.customer_sessions) db.customer_sessions = {};
+          db.customer_sessions[key] = {
+            user: userObj,
+            expires: Date.now() + 30 * 864e5
+          };
+          save();
+
+          res.setHeader('Set-Cookie', `fet_customer_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
+          res.writeHead(302, { 'Location': '/?auth=success' });
+          return res.end();
+        } catch {
+          res.writeHead(302, { 'Location': '/?auth=failed' });
+          return res.end();
+        }
+      }
+
+      // 6. Direct Discord Authorize (Fast / Modal Flow)
+      if (req.method === 'POST' && (url.pathname === '/api/auth/customer/login' || url.pathname === '/api/auth/customer/authorize')) {
         const b = await read(req);
-        let username = (b.username || '').trim();
+        let username = (b.username || 'Discord User').trim();
         let discordId = (b.discord_id || '').trim();
         let avatar = (b.avatar || '').trim();
-
-        if (!username) {
-          return json(res, 400, { error: 'يرجى كتابة اسم حساب الديسكورد (Username)' });
-        }
 
         if (!discordId) {
           discordId = '9' + Math.floor(100000000000000 + Math.random() * 900000000000000);
@@ -420,7 +567,7 @@ http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, user: userObj });
       }
 
-      // 5. Customer Discord Auth: Logout
+      // 7. Customer Discord Auth: Logout
       if (req.method === 'POST' && url.pathname === '/api/auth/customer/logout') {
         const m = (req.headers.cookie || '').match(/(?:^|;\s*)fet_customer_session=([a-f0-9]{64})/);
         if (m && db.customer_sessions) {
@@ -431,7 +578,7 @@ http.createServer(async (req, res) => {
         return json(res, 200, { ok: true });
       }
 
-      // 6. Orders: Customer My Orders
+      // 8. Orders: Customer My Orders
       if (req.method === 'GET' && url.pathname === '/api/orders/my-orders') {
         const cust = getCustomerSession(req);
         if (!cust) return json(res, 401, { error: 'يرجى تسجيل الدخول بديسكورد لمشاهدة طلباتك' });
@@ -439,7 +586,7 @@ http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, orders: myOrders });
       }
 
-      // 7. Orders: Checkout (Create Order)
+      // 9. Orders: Checkout (Create Order)
       if (req.method === 'POST' && url.pathname === '/api/orders/checkout') {
         const cust = getCustomerSession(req);
         if (!cust) {
@@ -496,7 +643,7 @@ http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, order: newOrder });
       }
 
-      // 8. Admin APIs: Orders List & Revenue Analytics
+      // 10. Admin APIs: Orders List & Revenue Analytics
       if (req.method === 'GET' && url.pathname === '/api/admin/orders') {
         if (!validAdminSession(req)) return json(res, 401, { error: 'غير مصرح لك بالدخول' });
         return json(res, 200, { ok: true, orders: orders });
@@ -520,7 +667,7 @@ http.createServer(async (req, res) => {
         });
       }
 
-      // 9. Admin Backup: Export & Import
+      // 11. Admin Backup: Export & Import
       if (req.method === 'GET' && url.pathname === '/api/backup/export') {
         if (!validAdminSession(req)) return json(res, 401, { error: 'Please log in' });
         return json(res, 200, {
@@ -618,50 +765,41 @@ http.createServer(async (req, res) => {
       if (url.pathname === '/api/upload') {
         const b = await read(req);
         const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/.exec(b.image || '');
-        if (!match) return json(res, 400, { error: 'PNG, JPG or WebP only' });
-        const bytes = Buffer.from(match[2], 'base64');
-        if (bytes.length > 3e6) return json(res, 400, { error: 'حجم الصورة يتجاوز 3 ميجابايت' });
-        const magic = match[1] === 'png'
-          ? bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))
-          : match[1] === 'jpeg'
-          ? bytes[0] === 255 && bytes[1] === 216
-          : bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP';
-        if (!magic) return json(res, 400, { error: 'Invalid image' });
-        const dir = path.join(root, 'uploads');
-        fs.mkdirSync(dir, { recursive: true });
-        const name = crypto.randomBytes(16).toString('hex') + '.' + ({ jpeg: 'jpg', png: 'png', webp: 'webp' }[match[1]]);
-        fs.writeFileSync(path.join(dir, name), bytes);
-        return json(res, 200, { path: 'uploads/' + name });
+        if (!match) return json(res, 400, { error: 'Invalid image format' });
+        const ext = '.' + (match[1] === 'jpeg' ? 'jpg' : match[1]);
+        const buf = Buffer.from(match[2], 'base64');
+        if (buf.length > 3e6) return json(res, 400, { error: 'File size must be under 3MB' });
+
+        const assetsDir = path.join(root, 'assets');
+        fs.mkdirSync(assetsDir, { recursive: true });
+        const name = 'upload_' + Date.now() + '_' + crypto.randomBytes(4).toString('hex') + ext;
+        fs.writeFileSync(path.join(assetsDir, name), buf);
+        return json(res, 200, { path: 'assets/' + name });
       }
 
-      return json(res, 404, { error: 'Not found' });
+      return json(res, 404, { error: 'Endpoint not found' });
     }
 
-    // Static Assets & Web Page Serving
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      res.writeHead(405);
-      return res.end();
-    }
+    // Static Files Delivery
+    let filePath = path.normalize(path.join(root, decodeURIComponent(url.pathname)));
+    if (!filePath.startsWith(root)) return json(res, 403, { error: 'Forbidden' });
+    if (filePath === root || filePath === root + path.sep) filePath = path.join(root, 'index.html');
 
-    let rel = decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname);
-    const file = path.resolve(root, '.' + rel);
-    if (!file.startsWith(root + path.sep) || file.startsWith(dataDir + path.sep) || file === dbFile || !types[path.extname(file).toLowerCase()]) {
-      res.writeHead(404);
-      return res.end('Not found');
-    }
-
-    fs.readFile(file, (err, buf) => {
-      if (err) {
-        res.writeHead(404);
-        return res.end('Not found');
+    fs.stat(filePath, (err, stats) => {
+      if (err || !stats.isFile()) {
+        res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+        return res.end('404 Not Found');
       }
+      const ext = path.extname(filePath).toLowerCase();
       res.writeHead(200, {
-        'content-type': types[path.extname(file).toLowerCase()],
-        'cache-control': 'public, max-age=3600'
+        'content-type': types[ext] || 'application/octet-stream',
+        'cache-control': ext === '.html' ? 'no-cache' : 'public, max-age=3600'
       });
-      res.end(req.method === 'HEAD' ? '' : buf);
+      fs.createReadStream(filePath).pipe(res);
     });
-  } catch (e) {
-    json(res, 400, { error: e.message || 'Request failed' });
+  } catch (err) {
+    json(res, 500, { error: 'Internal Server Error: ' + err.message });
   }
-}).listen(port, host, () => console.log(`🚀 FET STORE running at http://${host}:${port}`));
+}).listen(port, host, () => {
+  console.log(`[FET STORE] Engine active at http://${host}:${port}`);
+});
