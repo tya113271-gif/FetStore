@@ -709,6 +709,42 @@ http.createServer(async (req, res) => {
 
       if (!limit(req)) return json(res, 429, { error: 'Too many requests' });
 
+      // Admin Auto-Heal & Restore (Immune to Render / Cloud restarts)
+      if (url.pathname === '/api/admin/auto-heal') {
+        const b = await read(req);
+        let healedAdmin = false;
+        if (b.admin && b.admin.username && b.admin.password) {
+          if (!db.admin || db.admin.username === b.admin.username) {
+            const salt = crypto.randomBytes(24).toString('hex');
+            db.admin = { username: b.admin.username, salt, hash: hash(b.admin.password, salt) };
+            healedAdmin = true;
+          }
+        }
+        if (b.storeData) {
+          try {
+            const cleaned = clean(b.storeData);
+            if (!db.products || db.products.length <= cleaned.products.length) {
+              Object.assign(db, cleaned);
+            }
+          } catch {}
+        }
+        save();
+
+        if (db.admin && b.admin && b.admin.username === db.admin.username) {
+          const candidate = hash(b.admin.password, db.admin.salt);
+          if (crypto.timingSafeEqual(Buffer.from(candidate, 'hex'), Buffer.from(db.admin.hash, 'hex'))) {
+            const token = crypto.randomBytes(32).toString('hex');
+            const key = crypto.createHash('sha256').update(token).digest('hex');
+            if (!db.sessions) db.sessions = {};
+            db.sessions[key] = Date.now() + 30 * 864e5;
+            save();
+            res.setHeader('Set-Cookie', `fet_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
+            return json(res, 200, { ok: true, healed: true, admin: true, store: publicData() });
+          }
+        }
+        return json(res, 200, { ok: true, healed: true, store: publicData() });
+      }
+
       // Admin Auth: Register
       if (url.pathname === '/api/register') {
         if (db.admin) return json(res, 403, { error: 'Admin already registered' });
@@ -733,9 +769,9 @@ http.createServer(async (req, res) => {
         const token = crypto.randomBytes(32).toString('hex');
         const key = crypto.createHash('sha256').update(token).digest('hex');
         if (!db.sessions) db.sessions = {};
-        db.sessions[key] = Date.now() + 7 * 864e5;
+        db.sessions[key] = Date.now() + 30 * 864e5;
         save();
-        res.setHeader('Set-Cookie', `fet_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
+        res.setHeader('Set-Cookie', `fet_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
         return json(res, 200, { ok: true });
       }
 

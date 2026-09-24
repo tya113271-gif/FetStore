@@ -670,17 +670,65 @@ function openProductModal(p) {
 // APP INITIALIZATION & RENDERING
 // -------------------------------------------------------------
 async function init() {
+  let vault = null;
+  let snapshot = null;
+  try {
+    vault = JSON.parse(localStorage.getItem('fet_admin_vault') || 'null');
+    snapshot = JSON.parse(localStorage.getItem('fet_store_snapshot') || 'null');
+  } catch {}
+
   try {
     const s = await api('store');
     server = true;
     store = s;
     setup = s.setupRequired;
-    const me = await api('me');
-    authed = me.admin;
+
+    // IMMUNE PERSISTENCE: If server lost memory due to Render restart, auto-heal it instantly!
+    if (setup && vault && vault.username && vault.password) {
+      try {
+        const healRes = await api('admin/auto-heal', {
+          admin: { username: vault.username, password: vault.password },
+          storeData: snapshot || store
+        });
+        if (healRes && healRes.ok) {
+          setup = false;
+          authed = true;
+          if (healRes.store) store = healRes.store;
+        }
+      } catch (err) {
+        console.warn('Auto-heal error:', err);
+      }
+    }
+
+    if (!authed) {
+      const me = await api('me');
+      authed = me.admin;
+      if (!authed && vault && vault.username && vault.password && !setup) {
+        // Auto-login into dashboard session
+        try {
+          await api('login', { username: vault.username, password: vault.password });
+          authed = true;
+        } catch {}
+      }
+    }
+
+    // Sync snapshot if local device has saved more products
+    if (snapshot && snapshot.products && snapshot.products.length > store.products.length) {
+      store = snapshot;
+      if (authed) {
+        api('save', {
+          settings: store.settings,
+          hero_slides: store.hero_slides,
+          nav: store.nav,
+          categories: store.categories,
+          products: store.products
+        }).catch(() => {});
+      }
+    }
   } catch {
     server = false;
     try {
-      store = JSON.parse(localStorage.getItem('fet_demo_v3')) || clone(seed);
+      store = snapshot || JSON.parse(localStorage.getItem('fet_demo_v3')) || clone(seed);
     } catch {
       store = clone(seed);
     }
@@ -1428,23 +1476,29 @@ if ($('confirmAuthorizeBtn')) {
 // Admin Login Form Submit
 $('loginForm').onsubmit = async e => {
   e.preventDefault();
-  const username = $('username').value;
+  const username = $('username').value.trim();
   const password = $('password').value;
   try {
     if (server) {
       if (setup) {
         await api('register', { username, password });
         setup = false;
-        toast('تم إنشاء حساب المدير بنجاح؛ سجّل دخولك الآن', '✓');
+        localStorage.setItem('fet_admin_vault', JSON.stringify({ username, password }));
+        await api('login', { username, password });
+        authed = true;
+        toast('تم إنشاء حساب المدير وتأمينه بنجاح ✓', '✅');
         managerView();
         return;
       }
       await api('login', { username, password });
       authed = true;
+      localStorage.setItem('fet_admin_vault', JSON.stringify({ username, password }));
     } else {
       sessionStorage.setItem('fet_demo_admin', 'yes');
+      localStorage.setItem('fet_admin_vault', JSON.stringify({ username, password }));
     }
     managerView();
+    toast('تم تسجيل الدخول بنجاح 👋', '✅');
   } catch (err) {
     toast(err.message, '⚠️');
   }
@@ -1453,6 +1507,8 @@ $('loginForm').onsubmit = async e => {
 // Admin Save All
 $('saveBtn').onclick = async () => {
   try {
+    // Save snapshot in local storage
+    localStorage.setItem('fet_store_snapshot', JSON.stringify(store));
     if (server) {
       await api('save', {
         settings: store.settings,
@@ -1464,7 +1520,7 @@ $('saveBtn').onclick = async () => {
     } else {
       localStorage.setItem('fet_demo_v3', JSON.stringify(store));
     }
-    toast(server ? 'تم حفظ التغييرات على الخادم بنجاح ✓' : 'تم حفظ المعاينة في المتصفح ✓', '💾');
+    toast(server ? 'تم حفظ التغييرات وتأمينها على الخادم بنجاح ✓' : 'تم حفظ المعاينة في المتصفح ✓', '💾');
   } catch (err) {
     toast('تعذر الحفظ: ' + err.message, '⚠️');
   }

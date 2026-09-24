@@ -1,0 +1,127 @@
+{
+  "settings": {
+    "brand": "FET STORE",
+    "eyebrow": "PREMIUM QBCORE SCRIPTS",
+    "headline": "سكربتات ترفع مستوى سيرفرك.",
+    "highlight": "سيرفرك.",
+    "description": "متجر FET STORE لسكربتات FiveM المبنية لـ QBCore. أداء عالي، تجربة سلسة، وهوية فريدة.",
+    "accent": "#8cff36",
+    "discord": "https://discord.gg/fet",
+    "announcement": "🔥 مرحباً بكم في متجر FET STORE — سكربتات QBCore الحصرية متوفرة الآن!",
+    "logo": "assets/logo.png",
+    "hero_interval": 5,
+    "discord_client_id": "1538093018299633724",
+    "discord_client_secret": "",
+    "discord_bot_token": "",
+    "discord_guild_id": "",
+    "discord_customer_role_id": ""
+  },
+  "hero_slides": [
+    {
+      "id": "slide_1",
+      "eyebrow": "PREMIUM QBCORE SCRIPTS",
+      "headline": "سكربتات ترفع مستوى سيرفرك.",
+      "highlight": "سيرفرك.",
+      "description": "متجر FET STORE لسكربتات FiveM المبنية لـ QBCore. أداء عالي، تجربة سلسة، وهوية فريدة.",
+      "image": "assets/logo.png",
+      "tag": "✦ BUILT FOR QBCORE",
+      "cta_text": "استكشف السكربتات ←",
+      "cta_link": "#scripts"
+    },
+    {
+      "id": "slide_2",
+      "eyebrow": "EXCLUSIVE FIVEM SYSTEMS",
+      "headline": "أنظمة متطورة بأداء 0.00ms",
+      "highlight": "0.00ms",
+      "description": "سكربتات مبرمجة ومدروسة بدون أي استهلاك على السيرفر لتضمن أعلى فريمات وأفضل تجربة للاعبين.",
+      "image": "assets/logo.png",
+      "tag": "⚡ 0.00 MS RESMON",
+      "cta_text": "تصفح الأنظمة ←",
+      "cta_link": "#scripts"
+    },
+    {
+      "id": "slide_3",
+      "eyebrow": "24/7 SUPPORT & AUTO ROLE",
+      "headline": "تسليم فوري ورول تلقائي بدسكورد",
+      "highlight": "تلقائي بدسكورد",
+      "description": "سجل دخولك بحساب الديسكورد، اشترِ سكربتك، واستلم رتبتك وتذكرتك في سيرفرنا مباشرة وبكل سهولة.",
+      "image": "assets/tickets.png",
+      "tag": "👑 INSTANT DISCORD ROLES",
+      "cta_text": "انضم لديسكورد الدعم ↗",
+      "cta_link": "#support"
+    }
+  ],
+  "nav": [
+    {
+      "id": "home",
+      "label": "الرئيسية",
+      "href": "#home"
+    },
+    {
+      "id": "scripts",
+      "label": "السكربتات",
+      "href": "#scripts"
+    },
+    {
+      "id": "support",
+      "label": "الدعم والتذاكر",
+      "href": "#support"
+    }
+  ],
+  "categories": [
+    {
+      "id": "systems",
+      "name": "أنظمة متطورة"
+    },
+    {
+      "id": "jobs",
+      "name": "وظائف واقعية"
+    },
+    {
+      "id": "ui",
+      "name": "واجهات حصرية"
+    }
+  ],
+  "products": [
+    {
+      "id": "garage_system",
+      "name": "نظام كراجات وحجز متطور",
+      "category": "systems",
+      "desc": "السلام عليكم ورحمة الله وبركاته.\nنظام كراجات وسيارات متكامل وسلس مصمم خصيصاً لـ QBCore.\n\nالمميزات الأساسية:\n- واجهة عصرية وسلسة تفتح بسلاسة وبدون أي استهلاك (0.00ms)\n- نظام متكامل لمشاركة المفاتيح وإعارة المركبات للأصدقاء\n- نظام الحجز والتأمين واسترجاع المركبات بأسعار قابلة للتهيئة\n- متوافق بالكامل مع جميع سيرفرات الحياة الواقعية\n- دعم فني مستمر وتحديثات أسبوعية",
+      "price": "55 ر.س",
+      "image": "",
+      "badge": "الأكثر طلباً ⭐",
+      "checkoutUrl": "",
+      "featured": true
+    },
+    {
+      "id": "luxury_inventory",
+      "name": "انفنتوري وحقيبة متقدمة",
+      "category": "ui",
+      "desc": "حقيبة لاعبين عصرية وتفاعلية مصممة بأعلى معايير التصميم.\n\nأهم الخصائص:\n- وزن واقعي وديناميكي لكل عنصر وسلاح\n- تخصيص كامل لمستودعات وخزائن المنازل والسيارات\n- شريط وصول سريع وسلس للأسلحة بدون تأخير\n- أيقونات واضحة وتصميم يتناسب مع كافة مقاسات الشاشات",
+      "price": "75 ر.س",
+      "image": "",
+      "badge": "مميز 🔥",
+      "checkoutUrl": "",
+      "featured": true
+    },
+    {
+      "id": "exclusive_jobs",
+      "name": "حزمة وظائف واقتصاد حصرية",
+      "category": "jobs",
+      "desc": "باقة وظائف متقنة لتنشيط سيرفرك وجذب اللاعبين.\n\nتشمل الوظائف:\n- نظام توصيل ومهام تفاعلية\n- سجلات ديسكورد (Logs) لكل عملية بيع وشراء\n- رتب ورواتب واقعية ومتوازنة لحماية اقتصاد السيرفر",
+      "price": "45 ر.س",
+      "image": "",
+      "badge": "جديد ✦",
+      "checkoutUrl": "",
+      "featured": false
+    }
+  ],
+  "admin": {
+    "username": "admin",
+    "salt": "b59d046ca737c00dec0861e540230294abfe45372e02cfef",
+    "hash": "48b9383ca5fdac52de89b080cde8feaa10b3e1b5cb981b98de2da24caa0c7b671e92d5ed15ebfca606fc8c08d294c98a7a1102e52a1d4e59ed85fd5310391cf9"
+  },
+  "sessions": {},
+  "customer_sessions": {}
+}
